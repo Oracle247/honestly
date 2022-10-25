@@ -5,54 +5,39 @@ const handler = async (req, res) => {
   const method = req.method;
 
   //function for catch errors
-  const catcher = (error) => res.status(400).json({ error });
+  const catcher = (error, status = 400) => { 
+    res.status(status).send({error});
+  }
 
   // Potential Responses
   const handleCase = {
     // RESPONSE FOR GET REQUESTS
-    GET: async (req, res) => {
-      // return res.status(200).json("Users");
-      // console.log("no na here");
-      const { Message } = await connect(); // connect to database
-      Promise.all([
-        Message.find({})
-          .sort([["date", -1]])
-          .limit(20),
-        Message.countDocuments(),
-      ])
-        .then((result) => {
-          console.log(result[1]);
-          return res.status(200).json(result);
-        }) // return Users
-        .catch(catcher); // catch errorserrx
-    },
-
-    // RESPONSE POST REQUESTS
     POST: async (req, res) => {
-      const { Message, User } = await connect(); // connect to database
-      let { message, username } = req.body;
-      username = username.toLowerCase()
+      try{
+        const { User, Message } = await connect(); // connect to database
+        const { id } = req.body;
 
-      const user = await User.findOne({username: username});
-      if(!user) catcher({error: "user not found"});
+        console.log("entered: ", id);
 
-      const details = {
-        message,
-        _userID: user._id
-      } 
+        const userRecord = await User.findOne({_id: id})
+        if(!userRecord) throw new Error("user not found")
 
-			const newMessage = new Message(details);
-      await newMessage
-        .save()
-        .then(async (message) => {
-          res.status(200).json(message);
-        })
-        .catch(catcher);
-
-      
-      // res.json(await User.create(req.body).catch(catcher))
+        Promise.all([
+          Message.find({_userId: id})
+            .sort([["date", -1]]),
+          Message.countDocuments()
+        ])
+          .then((result) => {
+            return res.status(200).json(result)
+          })
+          .catch((error) => {
+            catcher(error.message)
+          })
+      }catch(error){
+        console.log('error: ', error);
+        catcher(error.message);
+      }
     },
-    
   };
 
   // Check if there is a response for the particular method, if so invoke it, if not response with an error
